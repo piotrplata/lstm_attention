@@ -1,22 +1,33 @@
 # lstm_attention
 
 Reversing sequences with LSTM with attention mechanism
+
 lstm_with_attention.py is an implementation of encoder decoder LSTM with attention mechanism
+
 lstm.py is the exact copy without attention mechanism
 
 The data is 20 000 artificially generated sentences of maximum length of 20 with dictonary of 10 words.
+
 Transformed into integer sequences padded with 0
+
 example:
+
 input [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 1, 9, 2, 8, 9]
+
 output [9, 8, 2, 9, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
 the output is then one-hot encoded
 
 MODEL
 
 INPUT
+
 EMBEDDING
+
 ENCODER_LSTM
+
 DECODER_LSTM_WITH
+
 DENSE
 
 
