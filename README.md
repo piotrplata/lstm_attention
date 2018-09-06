@@ -2,6 +2,10 @@
 
 Reversing sequences with LSTM with attention mechanism
 
+![alt text](lsm_vs_attention_losss.png)
+
+![alt text](lstm_vs_attention_accuracy.png)
+
 lstm_with_attention.py is an implementation of encoder decoder LSTM with attention mechanism
 
 lstm.py is the exact copy without attention mechanism
@@ -44,7 +48,3 @@ LSTM
 accuracy    95.722504
 
 loss         0.157651
-
-![alt text](lsm_vs_attention_losss.png)
-
-![alt text](lstm_vs_attention_accuracy.png)
