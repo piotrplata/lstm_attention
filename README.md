@@ -39,12 +39,12 @@ The results show that lstm with attention mechanism performs better than normal 
 
 LSTM with attention
 
-accuracy    99.988754
+accuracy    99.998749
 
 loss         0.000616
 
 LSTM 
 
-accuracy    95.722504
+accuracy    98.296249
 
 loss         0.157651
