@@ -1,6 +1,6 @@
 from keras.preprocessing import sequence
 from keras.layers import Dense, Embedding, Activation
-from keras.layers import LSTM, Input
+from keras.layers import LSTM, Input, dot
 import numpy as np
 import tensorflow as tf
 from keras.backend.tensorflow_backend import set_session
@@ -17,8 +17,7 @@ NUMBER_OF_SENTENCES = 20000
 MAX_SENTENCE_LENGTH = 20
 
 ### MODEL PARAMETERS ###
-LSTM_SIZE_ENCODER = 128
-LSTM_SIZE_DECODER = 128
+LSTM_SIZE = 128
 
 ## LEARNING PARAMETERS ###
 BATCH_SIZE = 64
@@ -63,27 +62,25 @@ dictonary_size = len(t.word_index) + 1
 
 # Parameters FOR LSTM:
 # Input gate: input, previous output, and bias.
-ix = tf.Variable(tf.truncated_normal([LSTM_SIZE_ENCODER, LSTM_SIZE_DECODER], -0.1, 0.1),dtype=tf.float32)
-im = tf.Variable(tf.truncated_normal([LSTM_SIZE_DECODER, LSTM_SIZE_DECODER], -0.1, 0.1),dtype=tf.float32)
-ib = tf.Variable(tf.zeros([1, LSTM_SIZE_DECODER]),dtype=tf.float32)
+ix = tf.Variable(tf.truncated_normal([LSTM_SIZE, LSTM_SIZE], -0.1, 0.1),dtype=tf.float32)
+im = tf.Variable(tf.truncated_normal([LSTM_SIZE, LSTM_SIZE], -0.1, 0.1),dtype=tf.float32)
+ib = tf.Variable(tf.zeros([1, LSTM_SIZE]),dtype=tf.float32)
 # Forget gate: input, previous output, and bias.
-fx = tf.Variable(tf.truncated_normal([LSTM_SIZE_ENCODER, LSTM_SIZE_DECODER], -0.1, 0.1),dtype=tf.float32)
-fm = tf.Variable(tf.truncated_normal([LSTM_SIZE_DECODER, LSTM_SIZE_DECODER], -0.1, 0.1),dtype=tf.float32)
-fb = tf.Variable(tf.zeros([1, LSTM_SIZE_DECODER]), dtype=tf.float32)
+fx = tf.Variable(tf.truncated_normal([LSTM_SIZE, LSTM_SIZE], -0.1, 0.1),dtype=tf.float32)
+fm = tf.Variable(tf.truncated_normal([LSTM_SIZE, LSTM_SIZE], -0.1, 0.1),dtype=tf.float32)
+fb = tf.Variable(tf.zeros([1, LSTM_SIZE]), dtype=tf.float32)
 # Memory cell: input, state and bias.                             
-cx = tf.Variable(tf.truncated_normal([LSTM_SIZE_ENCODER, LSTM_SIZE_DECODER], -0.1, 0.1),dtype=tf.float32)
-cm = tf.Variable(tf.truncated_normal([LSTM_SIZE_DECODER, LSTM_SIZE_DECODER], -0.1, 0.1),dtype=tf.float32)
-cb = tf.Variable(tf.zeros([1, LSTM_SIZE_DECODER]),dtype=tf.float32)
+cx = tf.Variable(tf.truncated_normal([LSTM_SIZE, LSTM_SIZE], -0.1, 0.1),dtype=tf.float32)
+cm = tf.Variable(tf.truncated_normal([LSTM_SIZE, LSTM_SIZE], -0.1, 0.1),dtype=tf.float32)
+cb = tf.Variable(tf.zeros([1, LSTM_SIZE]),dtype=tf.float32)
 # Output gate: input, previous output, and bias.
-ox = tf.Variable(tf.truncated_normal([LSTM_SIZE_ENCODER, LSTM_SIZE_DECODER], -0.1, 0.1),dtype=tf.float32)
-om = tf.Variable(tf.truncated_normal([LSTM_SIZE_DECODER, LSTM_SIZE_DECODER], -0.1, 0.1),dtype=tf.float32)
-ob = tf.Variable(tf.zeros([1, LSTM_SIZE_DECODER]),dtype=tf.float32)
+ox = tf.Variable(tf.truncated_normal([LSTM_SIZE, LSTM_SIZE], -0.1, 0.1),dtype=tf.float32)
+om = tf.Variable(tf.truncated_normal([LSTM_SIZE, LSTM_SIZE], -0.1, 0.1),dtype=tf.float32)
+ob = tf.Variable(tf.zeros([1, LSTM_SIZE]),dtype=tf.float32)
 
-#initial state for scan function
-init_state = tf.placeholder(shape=[2, None, LSTM_SIZE_DECODER], dtype=tf.float32)
 
 #Attention weights parameters
-Wcm = tf.Variable(tf.truncated_normal([LSTM_SIZE_DECODER,MAX_SENTENCE_LENGTH], -0.1, 0.1),dtype=tf.float32)
+Wcm = tf.Variable(tf.truncated_normal([LSTM_SIZE,MAX_SENTENCE_LENGTH], -0.1, 0.1),dtype=tf.float32)
 
 
 # Definition of the cell computation.
@@ -93,20 +90,24 @@ def lstm_step(prev, i):
     i = lstm_encoder_hidden
     ## ATTENTION MECHANISM ##
     
+
     #attention weights
-    w = tf.matmul(state,Wcm)
-    w = tf.nn.softmax(w)
+    #w = tf.matmul(state,Wcm)
+    #w = tf.nn.softmax(w)
      
     #expand for broadcasting
+    
+    w = dot([i,state], axes=(-1,-1))
     w = tf.expand_dims(w,2)
-
+    #import pdb; pdb.set_trace()
     #context vector
     context = i*w
+    
     #treat context vector as input to LSTM
     i = tf.reduce_mean(context,1)
          
     #########################
-    
+ 
     ##LSTM COMPUTATIONS
     input_gate = tf.sigmoid(tf.matmul(i, ix) + tf.matmul(o, im) + ib)
      
@@ -125,12 +126,12 @@ y_ = tf.placeholder(tf.float32, shape = (None,MAX_SENTENCE_LENGTH,dictonary_size
 #embedding layer
 embed = Embedding(dictonary_size,20)(x_)
 # LSTM from keras
-lstm_encoder_hidden = LSTM(LSTM_SIZE_ENCODER, return_sequences=True)(embed)
+lstm_encoder_hidden, state_o, state_c = LSTM(LSTM_SIZE, return_sequences=True, return_state= True)(embed)
 #force size of second dimension (time dimension)
-lstm_encoder_hidden.set_shape([None,MAX_SENTENCE_LENGTH,LSTM_SIZE_ENCODER])
+lstm_encoder_hidden.set_shape([None,MAX_SENTENCE_LENGTH,LSTM_SIZE])
 #run scan on lstm step, we dont need to feed any meaningful input
 #we create input in form of context vector inside lstm cell
-states = tf.scan(lstm_step, tf.zeros([MAX_SENTENCE_LENGTH, 1]), initializer=init_state)
+states = tf.scan(lstm_step, tf.zeros([MAX_SENTENCE_LENGTH, 1]), initializer=tf.stack([state_o,state_c]))
 #permute result to [output/state,observations,time,lstm_hidden]
 #pick output
 lstm_decoder = tf.transpose(states, [1,2,0,3])[0]
@@ -139,7 +140,7 @@ dense = Dense(dictonary_size)(lstm_decoder)
 cross_entropy_ = tf.nn.softmax_cross_entropy_with_logits_v2(logits = dense,
 labels = y_)
 cross_entropy = tf.reduce_mean(cross_entropy_)
-train_step = tf.train.RMSPropOptimizer(0.005, 0.9).minimize(cross_entropy)
+train_step = tf.train.RMSPropOptimizer(0.001, 0.9).minimize(cross_entropy)
 
 #metrics
 correct_prediction = tf.equal(tf.argmax(y_,2), tf.argmax(dense, 2))
@@ -159,21 +160,25 @@ for i in range(30000):
     _train_x = X_train[offset:(offset + BATCH_SIZE)]
     _train_y = y_train[offset:(offset + BATCH_SIZE)]
     sess.run([train_step],feed_dict={x_: _train_x,
-                                  y_: _train_y,
-                                  init_state : np.zeros([2, BATCH_SIZE, LSTM_SIZE_DECODER])})
+                                  y_: _train_y})
     if (i % 100 == 0):
         loss,acc = sess.run([cross_entropy,accuracy],feed_dict={x_: _train_x,
-                                  y_: _train_y,
-                                  init_state : np.zeros([2, BATCH_SIZE, LSTM_SIZE_DECODER])})
+                                  y_: _train_y})
         print ("Iter " + str(i) + ", Minibatch Loss= " + \
         "{:.6f}".format(loss) + ", Training Accuracy= " + \
         "{:.5f}".format(acc))
         
         loss,acc = sess.run([cross_entropy,accuracy],feed_dict={x_: X_test,
-                                  y_: y_test,
-                                  init_state : np.zeros([2, X_test.shape[0], LSTM_SIZE_DECODER])})
+                                  y_: y_test})
         print ("Iter " + str(i) + ", Test Loss= " + \
         "{:.6f}".format(loss) + ", Test Accuracy= " + \
         "{:.5f}".format(acc))
         losses.append(loss)
         accuraccies.append(acc)
+
+results = pd.DataFrame({"accuracy" : accuraccies, "loss" : losses})
+results.to_pickle("results_lstm_attention.pkl")
+
+
+
+
